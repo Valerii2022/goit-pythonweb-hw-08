@@ -1,9 +1,10 @@
 from typing import List, Optional
-
+from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from src.database.models import Contact
 from src.schemas import ContactCreate, ContactUpdate
+from sqlalchemy.sql import extract
 
 class ContactRepository:
     def __init__(self, session: AsyncSession):
@@ -63,4 +64,28 @@ class ContactRepository:
             await self.db.delete(contact)
             await self.db.commit()
         return contact
+    
+    async def search_contacts(self, name: Optional[str], surname: Optional[str], email: Optional[str]):
+        stmt = select(Contact)
+        if name:
+            stmt = stmt.where(Contact.first_name.ilike(f"%{name}%"))
+        if surname:
+            stmt = stmt.where(Contact.last_name.ilike(f"%{surname}%"))
+        if email:
+            stmt = stmt.where(Contact.email.ilike(f"%{email}%"))
+        
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+    
+    async def get_upcoming_birthdays(self, today: date, next_week: date):
+        stmt = select(Contact).where(
+            extract('month', Contact.birth_date) == today.month,
+            extract('day', Contact.birth_date) >= today.day,
+        ).where(
+            (extract('month', Contact.birth_date) == next_week.month) &
+            (extract('day', Contact.birth_date) <= next_week.day)
+        )
+    
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 

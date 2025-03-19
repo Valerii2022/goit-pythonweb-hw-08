@@ -1,13 +1,30 @@
-from typing import List
-
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from datetime import date, timedelta
 from src.database.db import get_db
 from src.repository.contacts import ContactRepository  
 from src.schemas import ContactCreate, ContactUpdate, ContactResponse
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
+
+@router.get("/search", response_model=List[ContactResponse])
+async def search_contacts(
+    name: Optional[str] = None,
+    surname: Optional[str] = None,
+    email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    contact_repo = ContactRepository(db)
+    return await contact_repo.search_contacts(name, surname, email)
+
+@router.get("/upcoming-birthdays", response_model=List[ContactResponse])
+async def get_upcoming_birthdays(db: AsyncSession = Depends(get_db)):
+    contact_repo = ContactRepository(db)
+    today = date.today()
+    next_week = today + timedelta(days=7)
+    
+    return await contact_repo.get_upcoming_birthdays(today, next_week)
 
 @router.post("/", response_model=ContactResponse, status_code=status.HTTP_201_CREATED)
 async def create_contact(contact: ContactCreate, db: AsyncSession = Depends(get_db)):
@@ -42,5 +59,7 @@ async def delete_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
     if contact is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
     return contact
+
+
 
 
